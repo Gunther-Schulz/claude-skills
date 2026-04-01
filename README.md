@@ -2,6 +2,10 @@
 
 Automatic quality checklists for Claude Code. A Haiku-based classifier detects what kind of task each prompt involves and loads the relevant skill checklist before Claude starts working.
 
+## Why
+
+Claude Code follows instructions but doesn't consistently self-check. It can skip consumer analysis before modifying interfaces, agree with proposals without challenging assumptions, or make claims without showing supporting data. These skills force verifiable checkpoints — tagged markers (📋, ✅, ⚖️) that you can spot-check — and the classifier loads them automatically so you don't have to remember to invoke them.
+
 ## Skills
 
 | Command | When to use |
@@ -79,6 +83,7 @@ if [ "$_skills_enabled" = "on" ]; then
 else
     GROUP_AUTOSKILLS="${_gray}auto-skills:off${_reset}"
 fi
+GROUP_AUTOSKILLS_COLOR="none"  # prevent line color from overriding inline colors
 STATUSLINE_3="MODEL RATE_5H RATE_7D CONTEXT AUTOSKILLS"
 ```
 
