@@ -41,49 +41,46 @@ if [ -z "$PROMPT" ]; then
     exit 0
 fi
 
+export LOG_FILE
+export CLASSIFIER_PROMPT="$PROMPT"
+
 # Build claude -p arguments
 CLAUDE_ARGS=(--model "$CLASSIFIER_MODEL" --effort "$CLASSIFIER_EFFORT" --output-format json)
 [ -n "$CLASSIFIER_MAX_BUDGET" ] && CLAUDE_ARGS+=(--max-budget-usd "$CLASSIFIER_MAX_BUDGET")
 
 # Classify using claude CLI
-RAW=$(echo "$PROMPT" | claude -p "${CLAUDE_ARGS[@]}" "Classify this message. Output ONLY the text after the arrow. Nothing else. If none match, output nothing.
+RAW=$(echo "$PROMPT" | claude -p "${CLAUDE_ARGS[@]}" "Classify this user message into one or more categories. For each match, output the corresponding line EXACTLY as shown. Output NOTHING else — no categories, no prefixes, no explanation. If none match, output nothing.
 
-code task → Run /code-quality before writing code.
-investigation/debug task → Run /critical-thinking before proceeding.
-proposal/design evaluation → Run /critical-evaluation before responding." 2>/dev/null || true)
+Run /code-quality before writing code.
+Run /critical-thinking before proceeding.
+Run /critical-evaluation before responding." 2>/dev/null || true)
 
-# Parse result, cost, and duration from JSON
-eval "$(echo "$RAW" | python3 -c "
-import sys, json
+# Parse JSON and output result + log in one step
+echo "$RAW" | python3 -c "
+import sys, json, os
+from datetime import datetime
 try:
     data = json.load(sys.stdin)
     result = data.get('result', '').strip()
     cost = data.get('total_cost_usd', 0)
-    duration_api = data.get('duration_api_ms', 0)
-    duration_total = data.get('duration_ms', 0)
+    api_ms = data.get('duration_api_ms', 0)
+    total_ms = data.get('duration_ms', 0)
     tokens_in = data.get('usage', {}).get('input_tokens', 0)
     tokens_out = data.get('usage', {}).get('output_tokens', 0)
-    print(f'RESULT={repr(result)}')
-    print(f'COST={cost:.6f}')
-    print(f'API_MS={duration_api}')
-    print(f'TOTAL_MS={duration_total}')
-    print(f'TOKENS_IN={tokens_in}')
-    print(f'TOKENS_OUT={tokens_out}')
 except:
-    print('RESULT=\"\"')
-    print('COST=0')
-    print('API_MS=0')
-    print('TOTAL_MS=0')
-    print('TOKENS_IN=0')
-    print('TOKENS_OUT=0')
-" 2>/dev/null)"
+    result, cost, api_ms, total_ms, tokens_in, tokens_out = '', 0, 0, 0, 0, 0
 
-# Log with cost and duration
-echo "$(date -Is) | ${RESULT:-NO_MATCH} | \$${COST} ${API_MS}ms/${TOTAL_MS}ms ${TOKENS_IN}in+${TOKENS_OUT}out | ${PROMPT:0:80}" >> "$LOG_FILE"
+# Log
+log_file = os.environ.get('LOG_FILE', '')
+prompt = os.environ.get('CLASSIFIER_PROMPT', '')[:80]
+ts = datetime.now().astimezone().isoformat(timespec='seconds')
+label = result.replace(chr(10), ' | ') if result else 'NO_MATCH'
+with open(log_file, 'a') as f:
+    f.write(f'{ts} | {label} | \${cost:.6f} {api_ms}ms/{total_ms}ms {tokens_in}in+{tokens_out}out | {prompt}\n')
 
-# Output result — plain stdout gets injected as system-reminder
-if [ -n "$RESULT" ]; then
-    echo "$RESULT"
-fi
+# Output result to stdout (injected as system-reminder)
+if result:
+    print(result)
+" 2>/dev/null
 
 exit 0
