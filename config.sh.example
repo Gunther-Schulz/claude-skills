@@ -1,6 +1,10 @@
-# claude-skills configuration
+# claude-auto-skills configuration
 # Installed to: ~/.config/claude-skills/config.sh
 # Override config location with CLAUDE_SKILLS_CONFIG env var
+
+# Enable/disable the classifier (default: true)
+# Skills remain available manually via /code-quality etc. when disabled
+#CLASSIFIER_ENABLED=true
 
 # Classifier model (default: claude-haiku-4-5-20251001)
 #CLASSIFIER_MODEL="claude-haiku-4-5-20251001"

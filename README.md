@@ -43,9 +43,13 @@ Follows [XDG Base Directory Specification](https://specifications.freedesktop.or
 
 ## Configuration
 
-Edit `~/.config/claude-auto-skills/config.sh`:
+Edit `~/.config/claude-skills/config.sh`:
 
 ```bash
+# Enable/disable the classifier (default: true)
+# Skills remain available manually via /code-quality etc. when disabled
+CLASSIFIER_ENABLED=true
+
 # Classifier model (default: claude-haiku-4-5-20251001)
 CLASSIFIER_MODEL="claude-haiku-4-5-20251001"
 
@@ -98,6 +102,7 @@ There is no way to prove these skills improve Claude's output quality. The skill
 - **Classifier accuracy tuning**: Output filter rejects hallucinated responses. Transcript context helps disambiguate short prompts ("yes" after "shall I implement?" → code-quality). 89% accuracy on test battery. Ongoing: refine based on `classifier.log` analysis.
 - **CLIPPY integration**: Add a fourth classifier category for substantial feature/refactoring tasks that recommends `/clippy-composer` (from [coding-clippy](https://github.com/Gunther-Schulz/coding-clippy)) instead of `/code-quality`. Waiting on CLIPPY skills stabilization.
 - **Enrich /code-quality from CLIPPY patterns**: Extract useful lightweight checks from CLIPPY's quality checkpoints (e.g., search for existing patterns before writing, duplication checks) without importing the full protocol.
+- **Replace `claude -p` subprocess with native hook classification**: Currently the classifier shells out to `claude -p` with Haiku (~3-6s latency, ~$0.008/call). Agent-type hooks (`type: "agent"`) would allow inline model calls without a subprocess, but are currently broken ([anthropics/claude-code#26474](https://github.com/anthropics/claude-code/issues/26474)). Prompt-type hooks can't inject context ([#37559](https://github.com/anthropics/claude-code/issues/37559)). Revisit when either is fixed.
 
 ## License
 

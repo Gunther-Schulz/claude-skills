@@ -14,12 +14,16 @@ CONFIGFILE="${CONFIGDIR}/config.sh"
 LOG_FILE="${STATEDIR}/classifier.log"
 
 # --- Defaults (overridden by config.sh) ---
+CLASSIFIER_ENABLED=true
 CLASSIFIER_MODEL="claude-haiku-4-5-20251001"
 CLASSIFIER_EFFORT="low"
 CLASSIFIER_MAX_BUDGET=""
 
 # Source user config
 [ -f "$CONFIGFILE" ] && source "$CONFIGFILE"
+
+# Disabled check (after sourcing config)
+[ "$CLASSIFIER_ENABLED" != "true" ] && exit 0
 
 # Ensure state dir exists
 mkdir -p "$STATEDIR"
