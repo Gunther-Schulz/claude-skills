@@ -26,34 +26,97 @@ mkdir -p "$STATEDIR"
 
 INPUT=$(cat)
 
-# Extract user prompt from hook JSON
-PROMPT=$(echo "$INPUT" | python3 -c "
-import sys, json
+# Extract user prompt and transcript path from hook JSON
+eval "$(echo "$INPUT" | python3 -c "
+import sys, json, shlex
 try:
     data = json.load(sys.stdin)
-    print(data.get('prompt', ''))
+    print(f'PROMPT={shlex.quote(data.get(\"prompt\", \"\"))}')
+    print(f'TRANSCRIPT_PATH={shlex.quote(data.get(\"transcript_path\", \"\"))}')
 except:
-    pass
-" 2>/dev/null)
+    print('PROMPT=\"\"')
+    print('TRANSCRIPT_PATH=\"\"')
+" 2>/dev/null)"
 
 if [ -z "$PROMPT" ]; then
     echo "$(date -Is) | NO_INPUT" >> "$LOG_FILE"
     exit 0
 fi
 
+# Extract last assistant text from transcript for context
+CONTEXT=""
+if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+    CONTEXT=$(python3 -c "
+import json, sys
+try:
+    last_text = ''
+    with open(sys.argv[1], 'r') as f:
+        for line in f:
+            try:
+                entry = json.loads(line.strip())
+                if entry.get('type') != 'assistant':
+                    continue
+                content = entry.get('message', {}).get('content', [])
+                if not isinstance(content, list):
+                    continue
+                texts = [b.get('text', '') for b in content
+                         if isinstance(b, dict) and b.get('type') == 'text' and b.get('text', '').strip()]
+                if texts:
+                    last_text = texts[-1]
+            except (json.JSONDecodeError, KeyError):
+                continue
+    # Take the last 300 chars
+    if len(last_text) > 300:
+        last_text = last_text[-300:]
+    print(last_text)
+except Exception:
+    pass
+" "$TRANSCRIPT_PATH" 2>/dev/null || true)
+fi
+
 export LOG_FILE
 export CLASSIFIER_PROMPT="$PROMPT"
+
+# Build classifier input with context
+if [ -n "$CONTEXT" ]; then
+    CLASSIFIER_INPUT="[Last assistant message (truncated)]:
+$CONTEXT
+
+[User message to classify]:
+$PROMPT"
+else
+    CLASSIFIER_INPUT="[User message to classify]:
+$PROMPT"
+fi
 
 # Build claude -p arguments
 CLAUDE_ARGS=(--model "$CLASSIFIER_MODEL" --effort "$CLASSIFIER_EFFORT" --output-format json)
 [ -n "$CLASSIFIER_MAX_BUDGET" ] && CLAUDE_ARGS+=(--max-budget-usd "$CLASSIFIER_MAX_BUDGET")
 
 # Classify using claude CLI
-RAW=$(echo "$PROMPT" | claude -p "${CLAUDE_ARGS[@]}" "Classify this user message into one or more categories. For each match, output the corresponding line EXACTLY as shown. Output NOTHING else — no categories, no prefixes, no explanation. If none match, output nothing.
+RAW=$(echo "$CLASSIFIER_INPUT" | claude -p "${CLAUDE_ARGS[@]}" 'Classify the user message. Output ONLY matching lines exactly as shown. If none match, output nothing.
 
-Run /code-quality before writing code.
-Run /critical-thinking before proceeding.
-Run /critical-evaluation before responding." 2>/dev/null || true)
+CATEGORIES (output the line after the arrow if the category matches):
+
+- code-quality: User is asking to WRITE, EDIT, CREATE, or IMPLEMENT code — new features, bug fixes, refactoring, file creation. Confirming a proposal to implement counts.
+  → Run /code-quality before writing code.
+
+- critical-thinking: User is asking to INVESTIGATE, DEBUG, TRACE, or ANALYZE something — find a bug, understand behavior, research a question, explain code.
+  → Run /critical-thinking before proceeding.
+
+- critical-evaluation: User is asking to EVALUATE, REVIEW, or CRITIQUE a specific proposal, design, PR, or approach — not general discussion.
+  → Run /critical-evaluation before responding.
+
+DO NOT MATCH (output nothing for these):
+- Short confirmations without implementation context: "yes", "ok", "sure", "sounds good", "go ahead"
+- Questions about process or next steps: "what is next?", "what should we do?"
+- Requests to continue or deepen discussion: "lets think more", "another round", "keep going"
+- Conversational or meta messages: greetings, feedback about the tool, topic changes
+- Git operations: "commit this", "push", "create a PR"
+- Design DISCUSSIONS (talking about how something should work without asking to write code)
+- Asking to UPDATE documentation or planning files (roadmaps, notes) — this is not code
+
+Use the assistant context (if provided) to disambiguate short messages. "yes" after "shall I implement?" is code-quality. "yes" after "want another design round?" is no match.' 2>/dev/null || true)
 
 # Parse JSON and output result + log in one step
 echo "$RAW" | python3 -c "
