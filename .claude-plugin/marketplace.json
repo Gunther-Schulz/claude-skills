@@ -1,5 +1,11 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "local",
+  "description": "Local plugins by Gunther Schulz",
+  "owner": {
+    "name": "Gunther Schulz",
+    "email": "noreply@local"
+  },
   "plugins": [
     {
       "name": "claude-auto-skills",

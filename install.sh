@@ -9,11 +9,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 NC='\033[0m'
 
-if ! command -v jq &>/dev/null; then
-    echo "Error: jq is required. Install with: sudo apt install jq  or  brew install jq" >&2
-    exit 1
-fi
-
 if [ ! -f "$SETTINGS" ]; then
     echo "Error: $SETTINGS not found. Is Claude Code installed?" >&2
     exit 1
@@ -44,29 +39,25 @@ for cmd in "${OLD_COMMANDS[@]}"; do
         echo -e "  ${GREEN}removed${NC}    $target (old install)"
     fi
 done
-echo ""
 
-# --- Register local marketplace, enable the plugin, and strip any old manual hook
-# entries (claude-skill-classifier / claude-hook-logger) that were used before
-# the plugin approach — the plugin's hooks/hooks.json replaces them.
-jq --arg path "$SCRIPT_DIR" '
-  .extraKnownMarketplaces["local"] = {"source": {"source": "directory", "path": $path}} |
-  .enabledPlugins["claude-auto-skills@local"] = true |
-  if .hooks.UserPromptSubmit then
-    .hooks.UserPromptSubmit = [
-      .hooks.UserPromptSubmit[] |
-      select(
-        (.hooks[0].command // "") |
-        (contains("claude-skill-classifier") or contains("claude-hook-logger")) |
-        not
-      )
-    ]
-  else . end
-' "$SETTINGS" > "${SETTINGS}.tmp" && mv "${SETTINGS}.tmp" "$SETTINGS"
-
-echo -e "  ${GREEN}registered${NC} marketplace 'local' → $SCRIPT_DIR"
-echo -e "  ${GREEN}enabled${NC}    claude-auto-skills@local"
-echo -e "  ${GREEN}cleaned${NC}    old hook entries from settings.json (if any)"
+# Strip old manual hook entries from settings.json
+if command -v jq &>/dev/null; then
+    jq '
+      if .hooks.UserPromptSubmit then
+        .hooks.UserPromptSubmit = [
+          .hooks.UserPromptSubmit[] |
+          select(
+            (.hooks[0].command // "") |
+            (contains("claude-skill-classifier") or contains("claude-hook-logger")) |
+            not
+          )
+        ]
+      else . end |
+      del(.extraKnownMarketplaces["local"]) |
+      del(.enabledPlugins["claude-auto-skills@local"])
+    ' "$SETTINGS" > "${SETTINGS}.tmp" && mv "${SETTINGS}.tmp" "$SETTINGS"
+    echo -e "  ${GREEN}cleaned${NC}    old hook/plugin entries from settings.json"
+fi
 echo ""
 
 # Config
@@ -79,4 +70,9 @@ else
 fi
 
 echo ""
-echo "Restart Claude Code to apply changes."
+echo "Now run these commands inside Claude Code:"
+echo ""
+echo "  /plugin marketplace add Gunther-Schulz/claude-auto-skills"
+echo "  /plugin install claude-auto-skills@local"
+echo ""
+echo "Then restart Claude Code or run /reload-plugins."
