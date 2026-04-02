@@ -79,7 +79,8 @@ if [ -f "$_skills_conf" ]; then
 fi
 _gray=$'\033[38;5;246m'; _green=$'\033[32m'; _reset=$'\033[0m'
 if [ "$_skills_enabled" = "on" ]; then
-    GROUP_AUTOSKILLS="${_gray}auto-skills:${_reset}${_green}on${_reset}"
+    _mode="${CLASSIFIER_SENSITIVITY:-normal}"
+    GROUP_AUTOSKILLS="${_gray}auto-skills:${_reset}${_green}on(${_mode})${_reset}"
 else
     GROUP_AUTOSKILLS="${_gray}auto-skills:off${_reset}"
 fi
