@@ -14,9 +14,9 @@ from datetime import datetime
 from pathlib import Path
 
 # Recursion guard: claude -p triggers UserPromptSubmit hooks too
-if os.environ.get("CLAUDE_SKILL_CLASSIFYING") == "1":
+if os.environ.get("CLAUDE_AUTO_SKILLS_CLASSIFYING") == "1":
     sys.exit(0)
-os.environ["CLAUDE_SKILL_CLASSIFYING"] = "1"
+os.environ["CLAUDE_AUTO_SKILLS_CLASSIFYING"] = "1"
 
 # Paths: env vars > XDG spec > defaults
 config_dir = Path(

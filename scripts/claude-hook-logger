@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Logs UserPromptSubmit hook input to a file for debugging
 # Skip logging for classifier's internal claude -p calls
-[ "${CLAUDE_SKILL_CLASSIFYING:-}" = "1" ] && exit 0
+[ "${CLAUDE_AUTO_SKILLS_CLASSIFYING:-}" = "1" ] && exit 0
 
 # Paths: env vars > XDG spec > defaults
 STATEDIR="${CLAUDE_AUTO_SKILLS_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/claude-auto-skills}"
