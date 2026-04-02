@@ -1,3 +1,9 @@
+---
+name: critical-evaluation
+description: Apply when the user asks to EVALUATE, COMPARE, CHOOSE, or DECIDE between options, or asks for an opinion on a design, approach, or tradeoff. Includes "should we use X or Y?", "is X the right choice?", "what do you think about X?".
+version: 1.0.0
+---
+
 ## Critical Evaluation Checklist
 
 Apply when the user proposes an idea, approach, or assumption.

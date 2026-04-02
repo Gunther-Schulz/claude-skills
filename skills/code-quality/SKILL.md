@@ -1,3 +1,9 @@
+---
+name: code-quality
+description: Apply when the user asks to WRITE, EDIT, CREATE, or IMPLEMENT code — new features, bug fixes, refactoring, file creation. Also apply for design constraints or corrections directed at code being written.
+version: 1.0.0
+---
+
 ## Code Quality Checklist
 
 Apply these rules to the current task before writing or modifying code.

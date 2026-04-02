@@ -1,0 +1,10 @@
+{
+  "name": "claude-auto-skills",
+  "version": "1.0.0",
+  "description": "Automatic skill injection via Haiku classifier hook. Injects code-quality, critical-thinking, critical-evaluation, and skill-design checklists based on the user's prompt.",
+  "author": {
+    "name": "Gunther Schulz"
+  },
+  "repository": "https://github.com/Gunther-Schulz/claude-auto-skills",
+  "license": "MIT"
+}

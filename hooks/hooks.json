@@ -1,0 +1,23 @@
+{
+  "UserPromptSubmit": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/claude-hook-logger",
+          "timeout": 2
+        }
+      ]
+    },
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/claude-skill-classifier",
+          "timeout": 15,
+          "statusMessage": "Classifying task..."
+        }
+      ]
+    }
+  ]
+}

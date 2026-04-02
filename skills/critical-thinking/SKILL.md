@@ -1,3 +1,9 @@
+---
+name: critical-thinking
+description: Apply when the user asks to INVESTIGATE, DEBUG, TRACE, or ANALYZE something — find a bug, understand behavior, research a question, explain code.
+version: 1.0.0
+---
+
 ## Critical Thinking Checklist
 
 Apply these rules to the current task when investigating, debugging, or making claims.

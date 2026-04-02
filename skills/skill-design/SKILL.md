@@ -1,3 +1,9 @@
+---
+name: skill-design
+description: Apply when the user asks to WRITE, UPDATE, DESIGN, or REVIEW a skill, rule, checklist, or prompt template. Includes creating new skills, modifying existing skill files, or discussing how skills should work.
+version: 1.0.0
+---
+
 ## Skill Design Checklist
 
 Apply when writing, modifying, or reviewing any skill, rule, or checklist — not just auto-skills.
