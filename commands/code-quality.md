@@ -7,8 +7,9 @@ Apply these rules to the current task before writing or modifying code.
 Before code, list requirements from the discussion:
 - `📋 Requirements: [requirement] — [met/simplified/skipped]` for each
 
-When modifying shared interfaces, list consumers:
+When modifying shared interfaces, list consumers and evaluate coupling:
 - `📋 Consumers: [file:line] — [status: ok/needs change/N/A]` for each
+- `📋 Coupling: [dependency] — [direct requirement/should be configurable/should be inverted]` for each cross-project dependency
 
 When checking consistency after changes:
 - `📋 Consistency: [consumer/dependency] — [consistent/updated/N/A]` for each
@@ -25,6 +26,7 @@ When checking consistency after changes:
 - For shared data formats (files, databases, queues, environment variables), search the codebase to find all readers — reading the writer alone is insufficient.
 - Each consumer identified via search must be read before being listed as checked — a search match is discovery only.
 - List each consumer and dependency with its current behavior and whether it requires a change. This list must appear in the response before the first line of implementation code.
+- For each dependency on another project or system, evaluate: is this a direct requirement, or an assumption that should be configurable or inverted? Hardcoding another project's internals (env vars, paths, APIs) is a coupling smell — make it configurable unless there's a strong reason not to.
 
 ### When adding error suppression or fallbacks
 - Trace the fallback/default value through downstream consumers in the same function and its callers.

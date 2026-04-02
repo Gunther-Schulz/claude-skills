@@ -151,7 +151,10 @@ _CATEGORIES = """CATEGORIES (output the line after the arrow if the category mat
   → Run /critical-thinking before proceeding.
 
 - critical-evaluation: User is asking to EVALUATE, COMPARE, CHOOSE, or DECIDE between options, or asking for an opinion on a design, approach, or tradeoff. Includes "should we use X or Y?", "is X the right choice?", "what do you think about X?".
-  → Run /critical-evaluation before responding."""
+  → Run /critical-evaluation before responding.
+
+- skill-design: User is asking to WRITE, UPDATE, DESIGN, or REVIEW a skill, rule, checklist, or prompt template. Includes creating new skills, modifying existing skill files, or discussing how skills should work.
+  → Run /skill-design before writing or modifying skills."""
 
 _low_keywords = config["CLASSIFIER_LOW_KEYWORDS"]
 _DO_NOT_MATCH_STRICT = f"""DO NOT MATCH (output nothing for these):
@@ -235,18 +238,20 @@ VALID = {
     "Run /code-quality before writing code.",
     "Run /critical-thinking before proceeding.",
     "Run /critical-evaluation before responding.",
+    "Run /skill-design before writing or modifying skills.",
 }
 CATEGORY_MAP = {
     "code-quality": "Run /code-quality before writing code.",
     "critical-thinking": "Run /critical-thinking before proceeding.",
     "critical-evaluation": "Run /critical-evaluation before responding.",
+    "skill-design": "Run /skill-design before writing or modifying skills.",
 }
 
 filtered = []
 if classification:
     for line in classification.splitlines():
         cleaned = line.strip().lstrip("-*•→ ").strip()
-        for prefix in ("code-quality: ", "critical-thinking: ", "critical-evaluation: "):
+        for prefix in ("code-quality: ", "critical-thinking: ", "critical-evaluation: ", "skill-design: "):
             if cleaned.lower().startswith(prefix):
                 cleaned = cleaned[len(prefix):].strip()
         if cleaned in VALID:
