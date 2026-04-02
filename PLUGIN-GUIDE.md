@@ -79,12 +79,16 @@ Only `name` is strictly required. The `name` here determines the skill namespace
 
 ### Skills (auto-invoked)
 
-Skills live in `skills/<skill-name>/SKILL.md`. Claude automatically invokes them based on the `description` field in the frontmatter:
+Skills live in `skills/<skill-name>/SKILL.md`. Claude automatically invokes them based on the `description` field in the frontmatter.
+
+**Naming convention:** Use descriptive names without the plugin prefix. The namespace already provides context (`my-plugin:code-review`, not `my-plugin:my-plugin-code-review`). Avoid skill names that share a prefix with the plugin name — due to [#29520](https://github.com/anthropics/claude-code/issues/29520), non-namespaced duplicates appear in autocomplete and would cluster with the plugin's namespaced entries.
+
+**Description convention:** Use third-person with specific trigger phrases in quotes:
 
 ```markdown
 ---
 name: code-review
-description: Reviews code for best practices. Use when reviewing code, checking PRs, or analyzing code quality.
+description: This skill should be used when the user asks to "review code", "check this PR", "analyze code quality", or requests feedback on implementation patterns.
 version: 1.0.0
 ---
 
@@ -93,6 +97,8 @@ When reviewing code, check for:
 2. Error handling
 3. Security concerns
 ```
+
+**Progressive disclosure:** For large skills, put detailed reference material in a `references/` subdirectory alongside `SKILL.md`. Reference them in prose: "For detailed patterns, see `references/patterns.md`".
 
 ### Commands (user-invoked)
 
