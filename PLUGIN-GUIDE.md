@@ -166,6 +166,31 @@ sys.stderr = open(os.devnull, "w")
 
 After a session restart, cached hook errors clear. But without stderr silencing, they reappear on every message.
 
+## Plugin Configuration (`.local.md` pattern)
+
+Plugins that need user-configurable settings should use `.claude/plugin-name.local.md` files with YAML frontmatter. This is the standard pattern documented by the `plugin-dev` plugin.
+
+```markdown
+---
+enabled: true
+sensitivity: normal
+model: claude-haiku-4-5-20251001
+custom_option: value
+---
+
+Optional markdown body for notes (ignored by the plugin).
+```
+
+**Location precedence:** project `.claude/plugin-name.local.md` > global `~/.claude/plugin-name.local.md`. This gives per-project overrides with a global fallback.
+
+**Why not `config.sh` or env vars?**
+- `.local.md` is the plugin ecosystem convention (readable by hooks, commands, and skills)
+- Per-project support without environment variable juggling
+- YAML frontmatter is parseable in both bash (`sed`) and Python (simple regex, no PyYAML needed)
+- `.local.md` files should be in `.gitignore` (user-specific, not shared)
+
+**Reading from hooks:** In Python hooks, parse the frontmatter with a simple regex. In bash hooks, use `sed -n '/^---$/,/^---$/{...}'`. No external dependencies needed.
+
 ## Installation Flow
 
 ### Publishing
