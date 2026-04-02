@@ -23,6 +23,18 @@ The DO NOT MATCH rule "Design DISCUSSIONS" causes Haiku to reject legitimate eva
 
 **Risk:** Loosening the filter may cause over-triggering on genuine casual discussion. Need more log data from real usage to calibrate.
 
+**Alternative: configurable sensitivity levels.** Rather than one fixed threshold, allow users to choose how aggressively the classifier triggers:
+
+```bash
+CLASSIFIER_SENSITIVITY="normal"  # low, normal, high
+```
+
+- **low**: Only explicit keywords ("evaluate", "investigate", "implement", "fix")
+- **normal**: Current behavior
+- **high**: Trigger on anything plausibly matching ("should we use X?", "what do you think about Y?")
+
+Implementation: select a different DO NOT MATCH section (or omit it entirely for high) based on the config value. One-line change in the Python script. Needs test batteries for each level before shipping.
+
 ## Classifier accuracy: bare category names
 
 Haiku sometimes returns just the category name (e.g., "critical-thinking") instead of the full line ("Run /critical-thinking before proceeding."). The `CATEGORY_MAP` filter handles this, but it indicates the classifier prompt could be clearer about output format.
