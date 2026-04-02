@@ -17,6 +17,8 @@ from pathlib import Path
 if os.environ.get("CLAUDE_AUTO_SKILLS_CLASSIFYING") == "1":
     sys.exit(0)
 os.environ["CLAUDE_AUTO_SKILLS_CLASSIFYING"] = "1"
+# Tell claude-worktime to skip logging for this subprocess
+os.environ["CLAUDE_WORKTIME_SKIP_LOG"] = "1"
 
 # Paths: env vars > XDG spec > defaults
 config_dir = Path(
