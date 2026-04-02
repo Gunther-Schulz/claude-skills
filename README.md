@@ -110,12 +110,44 @@ Use `/auto-skills:auto-skills` inside Claude Code to toggle, check status, or ch
 
 ## Updating
 
+```bash
+claude plugin marketplace update local
+claude plugin update auto-skills@local
 ```
-/plugin marketplace update local
-/plugin uninstall auto-skills@local
-/plugin install auto-skills@local
-/reload-plugins
+
+Then `/reload-plugins` or restart Claude Code.
+
+## Development
+
+Skills and hooks live in `plugin/`:
+
 ```
+plugin/
+├── .claude-plugin/
+│   └── plugin.json
+├── commands/
+│   └── auto-skills.md            # /auto-skills:auto-skills management command
+├── hooks/
+│   ├── hooks.json                # classifier + logger hook config
+│   └── scripts/
+│       ├── claude-skill-classifier   # Haiku-based prompt classifier
+│       └── claude-hook-logger        # debug logger
+└── skills/
+    ├── code-quality/SKILL.md
+    ├── critical-thinking/SKILL.md
+    ├── critical-evaluation/SKILL.md
+    └── skill-design/SKILL.md
+```
+
+After editing, push to GitHub and update:
+
+```bash
+git add -A && git commit -m "..." && git push
+claude plugin marketplace update local
+claude plugin update auto-skills@local
+```
+
+Then `/reload-plugins` or restart Claude Code.
 
 ## Uninstalling
 
