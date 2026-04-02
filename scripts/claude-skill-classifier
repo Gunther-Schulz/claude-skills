@@ -37,6 +37,10 @@ config = {
     "CLASSIFIER_MODEL": "claude-haiku-4-5-20251001",
     "CLASSIFIER_EFFORT": "low",
     "CLASSIFIER_MAX_BUDGET": "",
+    "CLASSIFIER_SENSITIVITY": "normal",
+    "CLASSIFIER_LOW_KEYWORDS": "evaluate,investigate,implement,fix,debug,refactor,create,trace,analyze,review,critique,add,write",
+    "CLASSIFIER_DO_NOT_MATCH": "",
+    "CLASSIFIER_CATEGORIES": "",
 }
 
 # Source config (parse bash-style KEY=VALUE)
@@ -129,9 +133,7 @@ cmd = [
 if config["CLASSIFIER_MAX_BUDGET"]:
     cmd.extend(["--max-budget-usd", config["CLASSIFIER_MAX_BUDGET"]])
 
-SYSTEM_PROMPT = """Classify the user message. Output ONLY matching lines exactly as shown. If none match, output nothing.
-
-CATEGORIES (output the line after the arrow if the category matches):
+_CATEGORIES = """CATEGORIES (output the line after the arrow if the category matches):
 
 - code-quality: User is asking to WRITE, EDIT, CREATE, or IMPLEMENT code — new features, bug fixes, refactoring, file creation. Confirming a proposal to implement counts.
   → Run /code-quality before writing code.
@@ -140,18 +142,48 @@ CATEGORIES (output the line after the arrow if the category matches):
   → Run /critical-thinking before proceeding.
 
 - critical-evaluation: User is asking to EVALUATE, REVIEW, or CRITIQUE a specific proposal, design, PR, or approach — not general discussion.
-  → Run /critical-evaluation before responding.
+  → Run /critical-evaluation before responding."""
 
-DO NOT MATCH (output nothing for these):
+_low_keywords = config["CLASSIFIER_LOW_KEYWORDS"]
+_DO_NOT_MATCH_STRICT = f"""DO NOT MATCH (output nothing for these):
+- Anything that doesn't use explicit action keywords ({_low_keywords})
+- All questions, discussions, confirmations, git operations, documentation updates"""
+
+_DO_NOT_MATCH_NORMAL = """DO NOT MATCH (output nothing for these):
 - Short confirmations without implementation context: "yes", "ok", "sure", "sounds good", "go ahead"
 - Questions about process or next steps: "what is next?", "what should we do?"
 - Requests to continue or deepen discussion: "lets think more", "another round", "keep going"
 - Conversational or meta messages: greetings, feedback about the tool, topic changes
 - Git operations: "commit this", "push", "create a PR"
 - Design DISCUSSIONS (talking about how something should work without asking to write code)
-- Asking to UPDATE documentation or planning files (roadmaps, notes) — this is not code
+- Asking to UPDATE documentation or planning files (roadmaps, notes) — this is not code"""
 
+_DO_NOT_MATCH_HIGH = """DO NOT MATCH (output nothing for these — be generous, match anything plausible):
+- Only skip pure confirmations ("yes", "ok"), greetings, and git operations ("commit", "push")
+- "should we use X?" and "what do you think about X?" ARE evaluation prompts — match them"""
+
+_CONTEXT_HINT = """
 Use the assistant context (if provided) to disambiguate short messages. "yes" after "shall I implement?" is code-quality. "yes" after "want another design round?" is no match."""
+
+# Allow full override of categories and DO NOT MATCH from config
+categories = config["CLASSIFIER_CATEGORIES"] or _CATEGORIES
+
+sensitivity = config["CLASSIFIER_SENSITIVITY"]
+if config["CLASSIFIER_DO_NOT_MATCH"]:
+    do_not_match = config["CLASSIFIER_DO_NOT_MATCH"]
+elif sensitivity == "low":
+    do_not_match = _DO_NOT_MATCH_STRICT
+elif sensitivity == "high":
+    do_not_match = _DO_NOT_MATCH_HIGH
+else:
+    do_not_match = _DO_NOT_MATCH_NORMAL
+
+SYSTEM_PROMPT = f"""Classify the user message. Output ONLY matching lines exactly as shown. If none match, output nothing.
+
+{categories}
+
+{do_not_match}
+{_CONTEXT_HINT}"""
 
 cmd.append(SYSTEM_PROMPT)
 
