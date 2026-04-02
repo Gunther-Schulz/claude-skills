@@ -6,5 +6,6 @@
     "name": "Gunther Schulz"
   },
   "repository": "https://github.com/Gunther-Schulz/claude-auto-skills",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": ["code-quality", "critical-thinking", "evaluation", "skills", "classifier", "automation"]
 }

@@ -2,6 +2,7 @@
 name: critical-evaluation
 description: This skill should be used when the user asks to "evaluate", "compare options", "choose between", "decide", "should we use X or Y?", "is X the right choice?", or "what do you think about X?". Covers design decisions, tradeoffs, and opinion requests.
 version: 1.0.0
+license: MIT
 ---
 
 ## Critical Evaluation Checklist

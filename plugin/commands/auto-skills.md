@@ -1,4 +1,5 @@
 ---
+name: auto-skills
 description: Manage the auto-skills classifier — toggle on/off, check status, or set sensitivity level.
 allowed-tools: AskUserQuestion, Read, Bash
 disable-model-invocation: true

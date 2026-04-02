@@ -2,6 +2,7 @@
 name: code-quality
 description: This skill should be used when the user asks to "write code", "implement a feature", "fix a bug", "refactor", "create a file", or gives design constraints like "make it configurable" or "extract that into a function". Covers new features, bug fixes, refactoring, and file creation.
 version: 1.0.0
+license: MIT
 ---
 
 ## Code Quality Checklist
