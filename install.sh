@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SETTINGS="${HOME}/.claude/settings.json"
-CONFIGDIR="${CLAUDE_AUTO_SKILLS_CONFIG:-${XDG_CONFIG_HOME:-${HOME}/.config}/claude-auto-skills}"
+GLOBAL_CONFIG="${HOME}/.claude/auto-skills.local.md"
 
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -40,7 +40,7 @@ for cmd in "${OLD_COMMANDS[@]}"; do
     fi
 done
 
-# Strip old manual hook entries from settings.json
+# Strip old manual hook entries and stale settings
 if command -v jq &>/dev/null; then
     jq '
       if .hooks.UserPromptSubmit then
@@ -57,15 +57,38 @@ if command -v jq &>/dev/null; then
     ' "$SETTINGS" > "${SETTINGS}.tmp" && mv "${SETTINGS}.tmp" "$SETTINGS"
     echo -e "  ${GREEN}cleaned${NC}    old hook/plugin entries from settings.json"
 fi
+
+# Migrate old config.sh to .local.md
+OLD_CONFIG="${CLAUDE_AUTO_SKILLS_CONFIG:-${XDG_CONFIG_HOME:-${HOME}/.config}/claude-auto-skills}/config.sh"
+if [ -f "$OLD_CONFIG" ] && [ ! -f "$GLOBAL_CONFIG" ]; then
+    # Extract values from old config
+    _enabled=$(grep -oP '(?<=^CLASSIFIER_ENABLED=).*' "$OLD_CONFIG" 2>/dev/null | tr -d '"' || echo "true")
+    _sensitivity=$(grep -oP '(?<=^CLASSIFIER_SENSITIVITY=).*' "$OLD_CONFIG" 2>/dev/null | tr -d '"' || echo "normal")
+    _model=$(grep -oP '(?<=^CLASSIFIER_MODEL=).*' "$OLD_CONFIG" 2>/dev/null | tr -d '"' || echo "")
+    _effort=$(grep -oP '(?<=^CLASSIFIER_EFFORT=).*' "$OLD_CONFIG" 2>/dev/null | tr -d '"' || echo "")
+    [ -z "$_enabled" ] && _enabled="true"
+    [ -z "$_sensitivity" ] && _sensitivity="normal"
+    [ -z "$_model" ] && _model="claude-haiku-4-5-20251001"
+    [ -z "$_effort" ] && _effort="low"
+    cat > "$GLOBAL_CONFIG" << LOCALMD
+---
+enabled: $_enabled
+sensitivity: $_sensitivity
+model: $_model
+effort: $_effort
+debug_logger: false
+---
+LOCALMD
+    echo -e "  ${GREEN}migrated${NC}   $OLD_CONFIG → $GLOBAL_CONFIG"
+fi
 echo ""
 
-# Config
-mkdir -p "$CONFIGDIR"
-if [ ! -f "${CONFIGDIR}/config.sh" ]; then
-    cp "${SCRIPT_DIR}/config.sh.example" "${CONFIGDIR}/config.sh"
-    echo -e "  ${GREEN}installed${NC}  ${CONFIGDIR}/config.sh"
+# Install default config if none exists
+if [ ! -f "$GLOBAL_CONFIG" ]; then
+    cp "${SCRIPT_DIR}/config.local.md.example" "$GLOBAL_CONFIG"
+    echo -e "  ${GREEN}installed${NC}  $GLOBAL_CONFIG"
 else
-    echo -e "  ${YELLOW}kept${NC}       ${CONFIGDIR}/config.sh (already exists)"
+    echo -e "  ${YELLOW}kept${NC}       $GLOBAL_CONFIG (already exists)"
 fi
 
 # Install plugin via CLI

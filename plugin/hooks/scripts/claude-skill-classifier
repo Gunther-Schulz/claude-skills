@@ -4,12 +4,15 @@
 Reads UserPromptSubmit hook JSON from stdin, classifies the prompt using
 claude -p with Haiku, and outputs the matching skill reminder to stdout
 (injected as system-reminder by Claude Code).
+
+Config: .claude/auto-skills.local.md (project) or ~/.claude/auto-skills.local.md (global)
 """
 
 import json
 import os
 import subprocess
 import sys
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -21,46 +24,102 @@ if os.environ.get("CLAUDE_AUTO_SKILLS_CLASSIFYING") == "1":
     sys.exit(0)
 os.environ["CLAUDE_AUTO_SKILLS_CLASSIFYING"] = "1"
 
-# Paths: env vars > XDG spec > defaults
-config_dir = Path(
-    os.environ.get("CLAUDE_AUTO_SKILLS_CONFIG")
-    or os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "claude-auto-skills")
-)
+
+# --- Config ---
+
+def parse_local_md(path: Path) -> dict:
+    """Parse YAML frontmatter from a .local.md file. Simple parser — no PyYAML dependency."""
+    if not path.exists():
+        return {}
+    text = path.read_text()
+    m = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
+    if not m:
+        return {}
+    frontmatter = m.group(1)
+
+    result = {}
+    categories = []
+    current_cat = None
+    in_categories = False
+
+    for line in frontmatter.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        # Detect categories list
+        if line.startswith("categories:"):
+            in_categories = True
+            continue
+
+        if in_categories:
+            if line.startswith("  - name:"):
+                if current_cat:
+                    categories.append(current_cat)
+                current_cat = {"name": line.split(":", 1)[1].strip().strip('"')}
+                continue
+            if current_cat and line.startswith("    "):
+                key, _, val = stripped.partition(":")
+                key = key.strip()
+                val = val.strip().strip('"')
+                if key in ("match", "action"):
+                    current_cat[key] = val
+                continue
+            # End of categories block
+            if current_cat:
+                categories.append(current_cat)
+                current_cat = None
+            in_categories = False
+
+        if ":" in line and not line.startswith(" "):
+            key, _, val = line.partition(":")
+            key = key.strip()
+            val = val.strip().strip('"')
+            if key and val:
+                result[key] = val
+
+    if current_cat:
+        categories.append(current_cat)
+    if categories:
+        result["categories"] = categories
+    return result
+
+
+# Find config: project .claude/auto-skills.local.md > global ~/.claude/auto-skills.local.md
+hook_input_raw = sys.stdin.read()
+try:
+    hook_input = json.loads(hook_input_raw)
+except (json.JSONDecodeError, ValueError):
+    hook_input = {}
+
+cwd = hook_input.get("cwd", os.getcwd())
+project_config = Path(cwd) / ".claude" / "auto-skills.local.md"
+global_config = Path.home() / ".claude" / "auto-skills.local.md"
+
+cfg = {}
+if project_config.exists():
+    cfg = parse_local_md(project_config)
+if not cfg and global_config.exists():
+    cfg = parse_local_md(global_config)
+
+# Defaults
+enabled = cfg.get("enabled", "true")
+sensitivity = cfg.get("sensitivity", "normal")
+model = cfg.get("model", "claude-haiku-4-5-20251001")
+effort = cfg.get("effort", "low")
+max_budget = cfg.get("max_budget", "")
+low_keywords = cfg.get("low_keywords", "evaluate,investigate,implement,fix,debug,refactor,create,trace,analyze,review,critique,add,write")
+subprocess_env = cfg.get("subprocess_env", "CLAUDE_WORKTIME_SKIP_LOG=1")
+
+# State dir for logs
 state_dir = Path(
     os.environ.get("CLAUDE_AUTO_SKILLS_STATE")
     or os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "claude-auto-skills")
 )
-config_file = config_dir / "config.sh"
 state_dir.mkdir(parents=True, exist_ok=True)
 log_file = state_dir / "classifier.log"
 
-# Defaults
-config = {
-    "CLASSIFIER_ENABLED": "true",
-    "CLASSIFIER_MODEL": "claude-haiku-4-5-20251001",
-    "CLASSIFIER_EFFORT": "low",
-    "CLASSIFIER_MAX_BUDGET": "",
-    "CLASSIFIER_SENSITIVITY": "normal",
-    "CLASSIFIER_LOW_KEYWORDS": "evaluate,investigate,implement,fix,debug,refactor,create,trace,analyze,review,critique,add,write",
-    "CLASSIFIER_DO_NOT_MATCH": "",
-    "CLASSIFIER_CATEGORIES": "",
-    "CLASSIFIER_ENV": "CLAUDE_WORKTIME_SKIP_LOG=1",
-}
-
-# Source config (parse bash-style KEY=VALUE)
-if config_file.exists():
-    for line in config_file.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" in line:
-            key, _, value = line.partition("=")
-            key = key.strip()
-            value = value.strip().strip("'\"")
-            if key in config:
-                config[key] = value
-
-if config["CLASSIFIER_ENABLED"] != "true":
+if enabled != "true":
     sys.exit(0)
 
 
@@ -73,12 +132,50 @@ def log(msg: str) -> None:
         pass
 
 
-# Read hook JSON from stdin
-try:
-    hook_input = json.load(sys.stdin)
-except (json.JSONDecodeError, ValueError):
-    log("ERROR | failed to parse hook stdin JSON")
-    sys.exit(0)
+# --- Build categories from config or defaults ---
+
+DEFAULT_CATEGORIES = [
+    {
+        "name": "code-quality",
+        "match": 'User is asking to WRITE, EDIT, CREATE, or IMPLEMENT code — new features, bug fixes, refactoring, file creation. Confirming a proposal to implement counts. Also matches DESIGN CONSTRAINTS or CORRECTIONS directed at code being written: "make it configurable", "extract that into a function", "handle the error case", "add validation", "use the existing helper instead".',
+        "action": "Run /auto-skills:code-quality before writing code.",
+    },
+    {
+        "name": "critical-thinking",
+        "match": "User is asking to INVESTIGATE, DEBUG, TRACE, or ANALYZE something — find a bug, understand behavior, research a question, explain code.",
+        "action": "Run /auto-skills:critical-thinking before proceeding.",
+    },
+    {
+        "name": "critical-evaluation",
+        "match": 'User is asking to EVALUATE, COMPARE, CHOOSE, or DECIDE between options, or asking for an opinion on a design, approach, or tradeoff. Includes "should we use X or Y?", "is X the right choice?", "what do you think about X?".',
+        "action": "Run /auto-skills:critical-evaluation before responding.",
+    },
+    {
+        "name": "skill-design",
+        "match": "User is asking to WRITE, UPDATE, DESIGN, or REVIEW a skill, rule, checklist, or prompt template. Includes creating new skills, modifying existing skill files, or discussing how skills should work.",
+        "action": "Run /auto-skills:skill-design before writing or modifying skills.",
+    },
+]
+
+categories = cfg.get("categories", DEFAULT_CATEGORIES)
+
+# Build classifier prompt sections from categories
+cat_lines = ["CATEGORIES (output the line after the arrow if the category matches):\n"]
+valid_actions = set()
+category_map = {}
+
+for cat in categories:
+    name = cat["name"]
+    match = cat["match"]
+    action = cat["action"]
+    cat_lines.append(f"- {name}: {match}\n  → {action}\n")
+    valid_actions.add(action)
+    category_map[name] = action
+
+categories_text = "\n".join(cat_lines)
+
+
+# --- Read prompt from hook input ---
 
 prompt = hook_input.get("prompt", "")
 transcript_path = hook_input.get("transcript_path", "")
@@ -127,41 +224,19 @@ if context:
 else:
     classifier_input = f"[User message to classify]:\n{prompt}"
 
-# Apply configured env vars for subprocess (e.g. CLAUDE_WORKTIME_SKIP_LOG=1)
-if config["CLASSIFIER_ENV"]:
-    for pair in config["CLASSIFIER_ENV"].split(","):
+# Apply configured env vars for subprocess
+if subprocess_env:
+    for pair in subprocess_env.split(","):
         pair = pair.strip()
         if "=" in pair:
             key, _, value = pair.partition("=")
             os.environ[key.strip()] = value.strip()
 
-# Build claude -p command
-cmd = [
-    "claude", "-p",
-    "--model", config["CLASSIFIER_MODEL"],
-    "--effort", config["CLASSIFIER_EFFORT"],
-    "--output-format", "json",
-]
-if config["CLASSIFIER_MAX_BUDGET"]:
-    cmd.extend(["--max-budget-usd", config["CLASSIFIER_MAX_BUDGET"]])
 
-_CATEGORIES = """CATEGORIES (output the line after the arrow if the category matches):
+# --- DO NOT MATCH rules ---
 
-- code-quality: User is asking to WRITE, EDIT, CREATE, or IMPLEMENT code — new features, bug fixes, refactoring, file creation. Confirming a proposal to implement counts. Also matches DESIGN CONSTRAINTS or CORRECTIONS directed at code being written: "make it configurable", "extract that into a function", "handle the error case", "add validation", "use the existing helper instead".
-  → Run /auto-skills:code-quality before writing code.
-
-- critical-thinking: User is asking to INVESTIGATE, DEBUG, TRACE, or ANALYZE something — find a bug, understand behavior, research a question, explain code.
-  → Run /auto-skills:critical-thinking before proceeding.
-
-- critical-evaluation: User is asking to EVALUATE, COMPARE, CHOOSE, or DECIDE between options, or asking for an opinion on a design, approach, or tradeoff. Includes "should we use X or Y?", "is X the right choice?", "what do you think about X?".
-  → Run /auto-skills:critical-evaluation before responding.
-
-- skill-design: User is asking to WRITE, UPDATE, DESIGN, or REVIEW a skill, rule, checklist, or prompt template. Includes creating new skills, modifying existing skill files, or discussing how skills should work.
-  → Run /auto-skills:skill-design before writing or modifying skills."""
-
-_low_keywords = config["CLASSIFIER_LOW_KEYWORDS"]
 _DO_NOT_MATCH_STRICT = f"""DO NOT MATCH (output nothing for these):
-- Anything that doesn't use explicit action keywords ({_low_keywords})
+- Anything that doesn't use explicit action keywords ({low_keywords})
 - All questions, discussions, confirmations, git operations, documentation updates"""
 
 _DO_NOT_MATCH_NORMAL = """DO NOT MATCH (output nothing for these):
@@ -180,13 +255,7 @@ _DO_NOT_MATCH_HIGH = """DO NOT MATCH (output nothing for these — be generous, 
 _CONTEXT_HINT = """
 Use the assistant context (if provided) to disambiguate short messages. "yes" after "shall I implement?" is code-quality. "yes" after "want another design round?" is no match."""
 
-# Allow full override of categories and DO NOT MATCH from config
-categories = config["CLASSIFIER_CATEGORIES"] or _CATEGORIES
-
-sensitivity = config["CLASSIFIER_SENSITIVITY"]
-if config["CLASSIFIER_DO_NOT_MATCH"]:
-    do_not_match = config["CLASSIFIER_DO_NOT_MATCH"]
-elif sensitivity == "low":
+if sensitivity == "low":
     do_not_match = _DO_NOT_MATCH_STRICT
 elif sensitivity == "high":
     do_not_match = _DO_NOT_MATCH_HIGH
@@ -195,14 +264,24 @@ else:
 
 SYSTEM_PROMPT = f"""Classify the user message. Output ONLY matching lines exactly as shown. If none match, output nothing.
 
-{categories}
+{categories_text}
 
 {do_not_match}
 {_CONTEXT_HINT}"""
 
+
+# --- Run classifier ---
+
+cmd = [
+    "claude", "-p",
+    "--model", model,
+    "--effort", effort,
+    "--output-format", "json",
+]
+if max_budget:
+    cmd.extend(["--max-budget-usd", max_budget])
 cmd.append(SYSTEM_PROMPT)
 
-# Run classifier
 try:
     result = subprocess.run(
         cmd,
@@ -236,31 +315,20 @@ except (json.JSONDecodeError, ValueError) as e:
     log(f"ERROR | json parse failed: {e} | raw={raw_output[:100]} | prompt={prompt[:60]}")
     sys.exit(0)
 
-# Filter: only allow expected lines
-VALID = {
-    "Run /auto-skills:code-quality before writing code.",
-    "Run /auto-skills:critical-thinking before proceeding.",
-    "Run /auto-skills:critical-evaluation before responding.",
-    "Run /auto-skills:skill-design before writing or modifying skills.",
-}
-CATEGORY_MAP = {
-    "code-quality": "Run /auto-skills:code-quality before writing code.",
-    "critical-thinking": "Run /auto-skills:critical-thinking before proceeding.",
-    "critical-evaluation": "Run /auto-skills:critical-evaluation before responding.",
-    "skill-design": "Run /auto-skills:skill-design before writing or modifying skills.",
-}
-
+# Filter: only allow expected actions
 filtered = []
 if classification:
     for line in classification.splitlines():
         cleaned = line.strip().lstrip("-*•→ ").strip()
-        for prefix in ("code-quality: ", "critical-thinking: ", "critical-evaluation: ", "skill-design: "):
-            if cleaned.lower().startswith(prefix):
+        # Strip category prefix if present (e.g., "code-quality: Run /...")
+        for cat in categories:
+            prefix = f"{cat['name']}: "
+            if cleaned.lower().startswith(prefix.lower()):
                 cleaned = cleaned[len(prefix):].strip()
-        if cleaned in VALID:
+        if cleaned in valid_actions:
             filtered.append(cleaned)
-        elif cleaned.lower() in CATEGORY_MAP:
-            filtered.append(CATEGORY_MAP[cleaned.lower()])
+        elif cleaned.lower() in category_map:
+            filtered.append(category_map[cleaned.lower()])
 
 # Log
 raw_label = classification.replace("\n", " | ")[:120] if classification else "EMPTY"
