@@ -13,6 +13,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+# Claude Code treats any stderr as hook error — silence it
+sys.stderr = open(os.devnull, "w")
+
 # Recursion guard: claude -p triggers UserPromptSubmit hooks too
 if os.environ.get("CLAUDE_AUTO_SKILLS_CLASSIFYING") == "1":
     sys.exit(0)

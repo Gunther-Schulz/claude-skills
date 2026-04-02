@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+exec 2>/dev/null  # Claude Code treats any stderr as hook error
 # Logs UserPromptSubmit hook input to a file for debugging
 # Skip logging for classifier's internal claude -p calls
 [ "${CLAUDE_AUTO_SKILLS_CLASSIFYING:-}" = "1" ] && exit 0
