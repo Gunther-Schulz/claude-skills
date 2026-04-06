@@ -1,4 +1,11 @@
-# claude-quality-skills
+# claude-quality-skills — DEPRECATED
+
+> **Deprecated.** The functionality of this plugin has been absorbed into:
+> - **bildhauer** — checkpoints 1, 4, 5 now cover claim verification, fallback tracing, contradiction investigation, hypothesis rejection
+> - **skill-craft** — skill design and rule writing methodology
+> - **clippy** — consumer analysis, contract verification (C3.4)
+>
+> This repo is kept for reference. Do not install.
 
 Quality checklists for Claude Code. Skills are auto-discovered based on task context — when you ask Claude to write code, investigate a bug, or evaluate a proposal, the relevant checklist loads automatically.
 
